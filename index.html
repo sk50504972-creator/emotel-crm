@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#1f2a44">
+<title>이모텔 고객관리</title>
+<style>
+:root{--navy:#1f2a44;--bg:#f3f5f9;--card:#fff;--line:#dfe3ea;--txt:#1b2330;--mut:#6b7585;
+--vac:#2e9d5b;--occ:#2f6fd6;--dirty:#d9822b;--clean:#8a63d2;--maint:#7a7f87;--red:#d64545}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
+header{background:var(--navy);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .sub{font-size:12px;opacity:.75}
+header .clock{margin-left:auto;font-variant-numeric:tabular-nums;font-size:14px}
+nav{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;overflow-x:auto;position:sticky;top:52px;z-index:4}
+nav button{border:0;background:none;padding:12px 14px;font-size:15px;color:var(--mut);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{color:var(--navy);border-color:var(--navy);font-weight:700}
+main{padding:14px;max-width:1280px;margin:0 auto}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:22px;margin-top:2px}
+.stat span{font-size:12px;color:var(--mut)}
+.floor{margin-bottom:10px}
+.floor h3{margin:6px 0;font-size:14px;color:var(--mut)}
+.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.room{border-radius:10px;padding:10px;color:#fff;cursor:pointer;min-height:92px;position:relative;user-select:none}
+.room .no{font-size:20px;font-weight:800}
+.room .ty{font-size:11px;opacity:.9}
+.room .info{font-size:12px;margin-top:4px;line-height:1.35}
+.room.vacant{background:var(--vac)}.room.occupied{background:var(--occ)}.room.dirty{background:var(--dirty)}
+.room.cleaning{background:var(--clean)}.room.maint{background:var(--maint)}
+.room.over{box-shadow:0 0 0 3px var(--red) inset;animation:blink 1.2s infinite}
+@keyframes blink{50%{box-shadow:0 0 0 3px transparent inset}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-bottom:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+th{background:#f7f8fb;font-size:12px;color:var(--mut);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+textarea{min-height:60px}
+label{font-size:12px;color:var(--mut);display:block;margin-bottom:3px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.btn{border:0;border-radius:8px;padding:9px 14px;font:inherit;cursor:pointer;background:var(--navy);color:#fff}
+.btn.g{background:#e9edf4;color:var(--txt)}.btn.r{background:var(--red)}.btn.o{background:var(--dirty)}.btn.v{background:var(--vac)}
+.btn.sm{padding:5px 9px;font-size:13px}
+.tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;background:#eef1f6;color:#44506a;margin-right:3px}
+.tag.vip{background:#fff1c9;color:#8a6200}.tag.reg{background:#e2f2ff;color:#1e5d97}.tag.bl{background:#ffe1e1;color:#a01818}
+.muted{color:var(--mut);font-size:12px}
+.warn{background:#fff4e5;border:1px solid #f3c98b;color:#7a4a00;padding:8px 10px;border-radius:8px;font-size:13px;margin:6px 0}
+.danger{background:#ffe8e8;border:1px solid #f0a5a5;color:#8a1111;padding:8px 10px;border-radius:8px;font-size:13px;margin:6px 0}
+.modal-bg{position:fixed;inset:0;background:rgba(10,15,30,.45);display:none;align-items:flex-start;justify-content:center;z-index:20;overflow:auto;padding:30px 10px}
+.modal{background:#fff;border-radius:12px;max-width:620px;width:100%;padding:18px}
+.modal h2{margin:0 0 12px;font-size:18px}
+.modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.sugg{border:1px solid var(--line);border-radius:8px;margin-top:4px;max-height:160px;overflow:auto}
+.sugg div{padding:7px 10px;cursor:pointer;border-bottom:1px solid #f0f2f6;font-size:14px}
+.sugg div:hover{background:#f4f7fc}
+#lock{position:fixed;inset:0;background:var(--navy);display:none;align-items:center;justify-content:center;z-index:50}
+#lock .box{background:#fff;padding:24px;border-radius:12px;width:280px;text-align:center}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;display:none;z-index:60}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div id="lock"><div class="box"><h3 style="margin-top:0">🔒 잠금</h3><p class="muted">PIN을 입력하세요</p>
+<input id="lockPin" type="password" inputmode="numeric" maxlength="8"><br><br><button class="btn" id="lockBtn" style="width:100%">열기</button></div></div>
+
+<header>
+  <div><h1 id="hName">이모텔 고객관리</h1><div class="sub" id="hAddr"></div></div>
+  <div class="clock" id="clock"></div>
+</header>
+<nav id="nav">
+  <button data-v="board" class="on">객실현황</button>
+  <button data-v="cust">고객</button>
+  <button data-v="resv">예약</button>
+  <button data-v="sales">매출·장부</button>
+  <button data-v="set">설정·백업</button>
+</nav>
+<main>
+  <section id="v-board"></section>
+  <section id="v-cust" class="hide"></section>
+  <section id="v-resv" class="hide"></section>
+  <section id="v-sales" class="hide"></section>
+  <section id="v-set" class="hide"></section>
+</main>
+<div class="modal-bg" id="mbg"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 저장소: 이 기기 브라우저(localStorage)에만 저장 ===== */
+const KEY='emotel_crm_v1';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const CHANNELS=['현장','전화','야놀자','여기어때','네이버','기타'];
+const PAYS=['카드','현금','계좌이체','OTA선결제','미수'];
+const STATUS={vacant:'공실',occupied:'사용중',dirty:'청소필요',cleaning:'청소중',maint:'점검·사용불가'};
+
+function defaults(){
+  const types=[
+    {id:'walk',name:'도보특가(주차불가)',daesil:20000,sukbak:36000},
+    {id:'std',name:'스탠다드',daesil:20000,sukbak:38000},
+    {id:'pc',name:'스탠다드 PC',daesil:20000,sukbak:42000},
+    {id:'twin',name:'트윈(더블+싱글)',daesil:25000,sukbak:45000},
+    {id:'triple',name:'트리플(더블+싱글2)',daesil:30000,sukbak:66000}];
+  const rooms=[];
+  const pattern=['std','std','pc','pc','twin','triple'];
+  for(let f=2;f<=6;f++)for(let i=1;i<=6;i++)rooms.push({no:`${f}0${i}`,floor:f,type:pattern[i-1]});
+  return {settings:{name:'이모텔',address:'전남광주통합특별시 순천시 연향상가2길 4 (1~6층)',phone:'',
+    pin:'',daesilHours:4,checkIn:'17:00',checkOut:'12:00',parking:10,retentionDays:365,roomTypes:types,rooms},
+    customers:[],stays:[],resv:[],roomState:{},log:[]};
+}
+let DB;
+function load(){try{DB=JSON.parse(localStorage.getItem(KEY))||defaults()}catch(e){DB=defaults()}
+  const d=defaults();for(const k in d)if(DB[k]===undefined)DB[k]=d[k];
+  for(const k in d.settings)if(DB.settings[k]===undefined)DB.settings[k]=d.settings[k];}
+function save(){localStorage.setItem(KEY,JSON.stringify(DB))}
+load();
+
+/* ===== 유틸 ===== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const won=n=>(Number(n)||0).toLocaleString('ko-KR')+'원';
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>{d=new Date(d);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+const hm=d=>{d=new Date(d);return `${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const dt=d=>d?`${ymd(d).slice(5)} ${hm(d)}`:'';
+const digits=s=>String(s||'').replace(/\D/g,'');
+const fmtPhone=s=>{const d=digits(s);return d.length===11?`${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`:d.length===10?`${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`:s||''};
+const maskPhone=s=>{const d=digits(s);return d.length>=8?`${d.slice(0,3)}-****-${d.slice(-4)}`:(s||'')};
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2200)}
+function typeOf(id){return DB.settings.roomTypes.find(t=>t.id===id)||{name:id,daesil:0,sukbak:0}}
+function roomOf(no){return DB.settings.rooms.find(r=>r.no===no)}
+function stOf(no){return DB.roomState[no]||(DB.roomState[no]={status:'vacant'})}
+function custOf(id){return DB.customers.find(c=>c.id===id)}
+function stayOf(id){return DB.stays.find(s=>s.id===id)}
+function log(msg){DB.log.unshift({at:Date.now(),msg});DB.log=DB.log.slice(0,500)}
+function custStats(cid){const ss=DB.stays.filter(s=>s.customerId===cid);
+  return {visits:ss.length,spent:ss.reduce((a,s)=>a+(+s.amount||0),0),last:ss.reduce((a,s)=>Math.max(a,s.inAt),0)}}
+function gradeTag(c){let h='';if(c.black)h+='<span class="tag bl">주의</span>';
+  if(c.grade==='VIP')h+='<span class="tag vip">VIP</span>';else if(c.grade==='단골')h+='<span class="tag reg">단골</span>';return h}
+function dueFor(kind,inAt){const s=DB.settings;const d=new Date(inAt);
+  if(kind==='대실')return inAt+s.daesilHours*3600e3;
+  const [h,m]=s.checkOut.split(':').map(Number);const o=new Date(d);o.setHours(h,m,0,0);
+  if(o<=d)o.setDate(o.getDate()+1);return o.getTime();}
+
+/* ===== 모달 ===== */
+function openModal(html){$('#modal').innerHTML=html;$('#mbg').style.display='flex'}
+function closeModal(){$('#mbg').style.display='none';$('#modal').innerHTML=''}
+$('#mbg').addEventListener('click',e=>{if(e.target.id==='mbg')closeModal()});
+
+/* ===== 탭 ===== */
+let VIEW='board';
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  VIEW=b.dataset.v;document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+VIEW));render();});
+function render(){$('#hName').textContent=DB.settings.name+' 고객관리';$('#hAddr').textContent=DB.settings.address+(DB.settings.phone?' · '+DB.settings.phone:'');
+  ({board:rBoard,cust:rCust,resv:rResv,sales:rSales,set:rSet})[VIEW]();}
+
+/* ===== 객실현황 ===== */
+function rBoard(){
+  const rooms=DB.settings.rooms,now=Date.now();
+  const cnt={vacant:0,occupied:0,dirty:0,cleaning:0,maint:0};let over=0,cars=0;
+  rooms.forEach(r=>{const st=stOf(r.no);cnt[st.status]++;if(st.status==='occupied'){const s=stayOf(st.stayId);if(s&&s.dueAt<now)over++;if(s&&s.car)cars++;}});
+  const today=ymd(now);const tSales=DB.stays.filter(s=>ymd(s.inAt)===today).reduce((a,s)=>a+(+s.amount||0),0);
+  const tResv=DB.resv.filter(r=>r.date===today&&r.status==='예정').length;
+  const floors=[...new Set(rooms.map(r=>r.floor))].sort((a,b)=>a-b);
+  let h=`<div class="stats">
+   <div class="stat"><span>공실</span><b style="color:var(--vac)">${cnt.vacant}</b></div>
+   <div class="stat"><span>사용중</span><b style="color:var(--occ)">${cnt.occupied}</b></div>
+   <div class="stat"><span>청소 대기·중</span><b style="color:var(--dirty)">${cnt.dirty+cnt.cleaning}</b></div>
+   <div class="stat"><span>시간 초과</span><b style="color:var(--red)">${over}</b></div>
+   <div class="stat"><span>주차 (등록 차량/총)</span><b>${cars}/${DB.settings.parking}</b></div>
+   <div class="stat"><span>오늘 예약 대기</span><b>${tResv}</b></div>
+   <div class="stat"><span>오늘 매출</span><b>${won(tSales)}</b></div></div>
+  <div class="legend">${Object.entries(STATUS).map(([k,v])=>`<span><i style="background:var(--${({vacant:'vac',occupied:'occ',dirty:'dirty',cleaning:'clean',maint:'maint'})[k]})"></i>${v}</span>`).join('')}<span><i style="background:var(--red)"></i>시간 초과(깜빡임)</span></div>`;
+  floors.forEach(f=>{h+=`<div class="floor"><h3>${f}층</h3><div class="rooms">`;
+    rooms.filter(r=>r.floor===f).forEach(r=>{const st=stOf(r.no);let info='',cls=st.status;
+      if(st.status==='occupied'){const s=stayOf(st.stayId);if(s){const c=custOf(s.customerId);const left=s.dueAt-now;
+        if(left<0)cls+=' over';
+        info=`${s.kind} · ${esc(c?c.name:s.guestLabel||'손님')}${c&&c.black?' ⚠':''}<br>${left<0?'초과 '+Math.ceil(-left/60000)+'분':'남은 '+fmtLeft(left)}<br>퇴실 ${hm(s.dueAt)}${s.car?' · 🚗'+esc(s.car):''}`}}
+      else if(st.note)info=esc(st.note);
+      h+=`<div class="room ${cls}" data-room="${r.no}"><div class="no">${r.no}</div><div class="ty">${esc(typeOf(r.type).name)} · ${STATUS[st.status]}</div><div class="info">${info}</div></div>`});
+    h+='</div></div>'});
+  $('#v-board').innerHTML=h;
+  $('#v-board').querySelectorAll('.room').forEach(el=>el.onclick=()=>roomAction(el.dataset.room));
+}
+function fmtLeft(ms){const m=Math.floor(ms/60000);return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`}
+
+function roomAction(no){const st=stOf(no),r=roomOf(no),t=typeOf(r.type);
+  if(st.status==='vacant')return checkinForm(no);
+  if(st.status==='occupied'){const s=stayOf(st.stayId);const c=s&&custOf(s.customerId);
+    openModal(`<h2>${no}호 · ${esc(t.name)} · 사용중</h2>
+     ${c&&c.black?`<div class="danger">⚠ 주의 고객: ${esc(c.blackReason||'')}</div>`:''}
+     <table><tr><th>구분</th><td>${s.kind} (${esc(s.channel)})</td></tr>
+     <tr><th>고객</th><td>${c?`${esc(c.name)} ${gradeTag(c)}<br>${esc(fmtPhone(c.phone))}`:esc(s.guestLabel||'미등록 손님')}</td></tr>
+     <tr><th>입실</th><td>${dt(s.inAt)}</td></tr><tr><th>퇴실 예정</th><td>${dt(s.dueAt)}</td></tr>
+     <tr><th>결제</th><td>${won(s.amount)} · ${esc(s.pay)}</td></tr><tr><th>인원/차량</th><td>${s.guests}명 ${s.car?'· '+esc(s.car):''}</td></tr>
+     <tr><th>메모</th><td>${esc(s.memo)}</td></tr></table>
+     <div class="grid3" style="margin-top:10px">
+       <div><label>연장(시간)</label><input id="extH" type="number" value="1" min="1"></div>
+       <div><label>연장 추가요금</label><input id="extA" type="number" value="5000" step="1000"></div>
+       <div style="align-self:end"><button class="btn g" id="bExt" style="width:100%">연장</button></div></div>
+     <div class="foot"><button class="btn g" id="bMove">객실 이동</button><button class="btn g" onclick="closeModal()">닫기</button><button class="btn o" id="bOut">퇴실 처리</button></div>`);
+    $('#bOut').onclick=()=>{s.outAt=Date.now();st.status='dirty';st.stayId=null;log(`${no}호 퇴실`);save();closeModal();render();toast(no+'호 퇴실 → 청소필요')};
+    $('#bExt').onclick=()=>{const h=+$('#extH').value||0,a=+$('#extA').value||0;s.dueAt+=h*3600e3;s.amount=(+s.amount||0)+a;s.memo=(s.memo?s.memo+' / ':'')+`연장 ${h}h +${a}`;log(`${no}호 연장 ${h}시간`);save();closeModal();render();toast('연장 완료')};
+    $('#bMove').onclick=()=>roomPicker(`${no}호 손님 객실 이동`,s.roomType,to=>{
+      s.roomNo=to;Object.assign(stOf(to),{status:'occupied',stayId:s.id});st.status='dirty';st.stayId=null;log(`${no}→${to} 이동`);save();closeModal();render();toast(`${to}호로 이동`)});
+    return;}
+  openModal(`<h2>${no}호 · ${STATUS[st.status]}</h2>
+    <label>메모 (고장 내용 등)</label><input id="rNote" value="${esc(st.note||'')}">
+    <div class="foot">
+      ${st.status==='dirty'?'<button class="btn" data-s="cleaning">청소 시작</button>':''}
+      <button class="btn v" data-s="vacant">청소완료·공실</button>
+      <button class="btn g" data-s="maint">점검·사용불가</button>
+      <button class="btn g" onclick="closeModal()">닫기</button></div>`);
+  document.querySelectorAll('#modal [data-s]').forEach(b=>b.onclick=()=>{st.status=b.dataset.s;st.note=b.dataset.s==='vacant'?'':$('#rNote').value;log(`${no}호 ${STATUS[st.status]}`);save();closeModal();render();});
+}
+
+/* 공실 선택 모달 (같은 타입 우선 표시) */
+function roomPicker(title,prefType,cb){const vac=DB.settings.rooms.filter(x=>stOf(x.no).status==='vacant');
+  if(!vac.length)return alert('공실이 없습니다');
+  const same=vac.filter(x=>x.type===prefType),other=vac.filter(x=>x.type!==prefType);
+  const btns=list=>list.map(r=>`<button class="btn v" data-pick="${r.no}" style="min-width:86px">${r.no}<br><small>${esc(typeOf(r.type).name)}</small></button>`).join(' ');
+  openModal(`<h2>${esc(title)}</h2>${same.length?`<label>같은 타입 공실</label><div class="row">${btns(same)}</div>`:'<div class="warn">같은 타입 공실이 없습니다.</div>'}
+    ${other.length?`<label style="margin-top:10px">다른 타입 공실</label><div class="row">${btns(other)}</div>`:''}
+    <div class="foot"><button class="btn g" onclick="closeModal()">취소</button></div>`);
+  document.querySelectorAll('#modal [data-pick]').forEach(b=>b.onclick=()=>cb(b.dataset.pick));}
+
+/* 고객 찾기 입력(전화 뒤4자리/이름/차량) */
+function custPicker(onPick){return `<label>고객 찾기 (전화 뒤 4자리·이름·차량번호)</label><input id="cq" placeholder="예: 4972 / 김철수 / 12가3456"><div class="sugg hide" id="cs"></div><div id="cSel"></div>`}
+function bindPicker(state){const q=$('#cq'),box=$('#cs');
+  q.oninput=()=>{const v=q.value.trim();if(!v){box.classList.add('hide');return}
+    const dv=digits(v);const list=DB.customers.filter(c=>(dv.length>=3&&digits(c.phone).includes(dv))||c.name.includes(v)||(c.car||'').replace(/\s/g,'').includes(v.replace(/\s/g,''))).slice(0,8);
+    box.innerHTML=list.map(c=>`<div data-id="${c.id}">${esc(c.name)} ${gradeTag(c)} <span class="muted">${esc(maskPhone(c.phone))} ${esc(c.car||'')} · ${custStats(c.id).visits}회</span></div>`).join('')+`<div data-new="1">＋ 새 고객으로 등록: "${esc(v)}"</div>`;
+    box.classList.remove('hide');
+    box.querySelectorAll('div').forEach(d=>d.onclick=()=>{box.classList.add('hide');
+      if(d.dataset.new){const isNum=dv.length>=9;state.newCust={name:isNum?'':v,phone:isNum?v:''};state.cid=null;}
+      else{state.cid=d.dataset.id;state.newCust=null;}
+      showSel(state);});};
+  function showSel(state){const el=$('#cSel');
+    if(state.cid){const c=custOf(state.cid),s=custStats(c.id);
+      el.innerHTML=`<div class="card" style="margin:8px 0;padding:10px"><b>${esc(c.name)}</b> ${gradeTag(c)} <span class="muted">${esc(fmtPhone(c.phone))} · 방문 ${s.visits}회 · 누적 ${won(s.spent)}${s.last?' · 최근 '+ymd(s.last):''}</span>${c.memo?`<div class="muted">메모: ${esc(c.memo)}</div>`:''}</div>${c.black?`<div class="danger">⚠ 주의 고객: ${esc(c.blackReason||'사유 미기재')}</div>`:''}`;
+      if(c.car&&$('#ciCar')&&!$('#ciCar').value)$('#ciCar').value=c.car;}
+    else if(state.newCust){el.innerHTML=`<div class="grid3" style="margin-top:8px"><div><label>이름/호칭</label><input id="ncName" value="${esc(state.newCust.name)}"></div><div><label>전화</label><input id="ncPhone" value="${esc(state.newCust.phone)}"></div><div><label>문자 수신 동의</label><select id="ncConsent"><option value="0">미동의</option><option value="1">동의</option></select></div></div>`}}
+}
+function takeCust(state){if(state.cid)return state.cid;
+  if(state.newCust){const name=($('#ncName').value||'').trim(),phone=($('#ncPhone').value||'').trim();
+    if(!name&&!phone)return null;
+    const ex=phone&&DB.customers.find(c=>digits(c.phone)===digits(phone));if(ex)return ex.id;
+    const c={id:uid(),name:name||'손님'+digits(phone).slice(-4),phone,car:'',grade:'일반',black:false,blackReason:'',memo:'',consent:$('#ncConsent').value==='1',createdAt:Date.now()};
+    DB.customers.push(c);return c.id;}
+  return null;}
+
+/* ===== 입실 ===== */
+function checkinForm(no,fromResv){const r=roomOf(no),t=typeOf(r.type);const state={cid:fromResv?fromResv.customerId:null,newCust:null};
+  openModal(`<h2>${no}호 입실 · ${esc(t.name)}</h2>
+   ${custPicker()}
+   <div class="grid3" style="margin-top:10px">
+    <div><label>구분</label><select id="ciKind"><option>대실</option><option>숙박</option></select></div>
+    <div><label>경로</label><select id="ciCh">${CHANNELS.map(c=>`<option ${fromResv&&fromResv.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div><label>결제수단</label><select id="ciPay">${PAYS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div><label>금액</label><input id="ciAmt" type="number" step="1000" value="${t.daesil}"></div>
+    <div><label>인원</label><input id="ciG" type="number" min="1" value="2"></div>
+    <div><label>차량번호</label><input id="ciCar" placeholder="없으면 비움"></div></div>
+   <label style="margin-top:10px">메모</label><input id="ciMemo" value="${esc(fromResv?fromResv.memo:'')}">
+   <label style="margin-top:10px;font-size:14px;color:var(--txt)"><input type="checkbox" id="ciId" style="width:auto"> 신분증으로 성인 여부 확인함 (청소년 혼숙·출입 금지)</label>
+   <div class="foot"><button class="btn g" onclick="closeModal()">취소</button><button class="btn" id="ciOk">입실 등록</button></div>`);
+  bindPicker(state);
+  if(state.cid){$('#cq').value=custOf(state.cid)?.name||'';$('#cq').dispatchEvent(new Event('input'));$('#cs').classList.add('hide');
+    const c=custOf(state.cid);if(c){$('#cSel').innerHTML=`<div class="card" style="margin:8px 0;padding:10px"><b>${esc(c.name)}</b> ${gradeTag(c)} <span class="muted">예약 고객</span></div>`;if(c.car)$('#ciCar').value=c.car;}}
+  if(fromResv)$('#ciKind').value=fromResv.kind;
+  const setAmt=()=>{$('#ciAmt').value=$('#ciKind').value==='대실'?t.daesil:t.sukbak};
+  $('#ciKind').onchange=setAmt;if(fromResv)setAmt();
+  $('#ciOk').onclick=()=>{
+    if(!$('#ciId').checked&&!confirm('신분증 확인에 체크하지 않았습니다. 그래도 입실 처리할까요?'))return;
+    const cid=takeCust(state);const c=cid&&custOf(cid);
+    if(c&&c.black&&!confirm('주의 고객입니다. 입실을 진행할까요?'))return;
+    const now=Date.now(),kind=$('#ciKind').value,car=$('#ciCar').value.trim();
+    if(c&&car)c.car=car;
+    const s={id:uid(),roomNo:no,roomType:r.type,customerId:cid,guestLabel:cid?'':((fromResv&&fromResv.name)||'미등록 손님'),kind,channel:$('#ciCh').value,pay:$('#ciPay').value,
+      amount:+$('#ciAmt').value||0,guests:+$('#ciG').value||1,car,idChecked:$('#ciId').checked,inAt:now,dueAt:dueFor(kind,now),outAt:null,memo:$('#ciMemo').value};
+    DB.stays.push(s);Object.assign(stOf(no),{status:'occupied',stayId:s.id,note:''});
+    if(fromResv){fromResv.status='입실';fromResv.stayId=s.id}
+    if(c){const st=custStats(c.id);if(c.grade==='일반'&&st.visits>=5)c.grade='단골';}
+    log(`${no}호 ${kind} 입실`);save();closeModal();render();toast(`${no}호 ${kind} 입실 · 퇴실 ${hm(s.dueAt)}`);};
+}
+
+/* ===== 고객 ===== */
+let custQ='',custF='all';
+function rCust(){
+  const list=DB.customers.filter(c=>{if(custF==='black'&&!c.black)return false;if(custF==='vip'&&c.grade==='일반')return false;if(custF==='consent'&&!c.consent)return false;
+    if(!custQ)return true;const d=digits(custQ);return c.name.includes(custQ)||(d.length>=3&&digits(c.phone).includes(d))||(c.car||'').includes(custQ)||(c.memo||'').includes(custQ)})
+    .map(c=>({c,s:custStats(c.id)})).sort((a,b)=>b.s.last-a.s.last);
+  $('#v-cust').innerHTML=`<div class="card"><div class="row">
+    <input id="cQ" placeholder="이름·전화·차량·메모 검색" value="${esc(custQ)}" style="flex:1;min-width:180px">
+    <select id="cF" style="width:auto"><option value="all">전체</option><option value="vip">단골·VIP</option><option value="black">주의 고객</option><option value="consent">문자 동의</option></select>
+    <button class="btn" id="cAdd">＋ 고객 등록</button><button class="btn g" id="cCsv">CSV 내보내기</button></div>
+    <p class="muted">총 ${DB.customers.length}명 · 표시 ${list.length}명. 방문 5회가 되면 자동으로 '단골'이 됩니다.</p>
+    <div style="overflow:auto"><table><tr><th>이름</th><th>전화</th><th>차량</th><th class="num">방문</th><th class="num">누적</th><th>최근 방문</th><th>메모</th><th></th></tr>
+    ${list.map(({c,s})=>`<tr><td>${esc(c.name)} ${gradeTag(c)}</td><td>${esc(fmtPhone(c.phone))}${c.consent?' <span class="tag">문자OK</span>':''}</td><td>${esc(c.car||'')}</td><td class="num">${s.visits}</td><td class="num">${won(s.spent)}</td><td>${s.last?ymd(s.last):'-'}</td><td class="muted">${esc((c.memo||'').slice(0,30))}</td><td><button class="btn g sm" data-e="${c.id}">상세</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">등록된 고객이 없습니다.</td></tr>'}
+    </table></div></div>`;
+  $('#cF').value=custF;
+  $('#cQ').oninput=e=>{custQ=e.target.value;const p=e.target.selectionStart;rCust();const i=$('#cQ');i.focus();i.setSelectionRange(p,p)};
+  $('#cF').onchange=e=>{custF=e.target.value;rCust()};
+  $('#cAdd').onclick=()=>custForm();
+  $('#cCsv').onclick=exportCustCsv;
+  $('#v-cust').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>custForm(b.dataset.e));
+}
+function custForm(id){const c=id?custOf(id):{id:uid(),name:'',phone:'',car:'',grade:'일반',black:false,blackReason:'',memo:'',consent:false,createdAt:Date.now()};
+  const hist=id?DB.stays.filter(s=>s.customerId===id).sort((a,b)=>b.inAt-a.inAt):[];
+  openModal(`<h2>${id?'고객 상세':'고객 등록'}</h2>
+   <div class="grid2"><div><label>이름/호칭</label><input id="fN" value="${esc(c.name)}"></div><div><label>전화</label><input id="fP" value="${esc(c.phone)}"></div>
+   <div><label>차량번호</label><input id="fC" value="${esc(c.car)}"></div><div><label>등급</label><select id="fG">${['일반','단골','VIP'].map(g=>`<option ${c.grade===g?'selected':''}>${g}</option>`).join('')}</select></div></div>
+   <label style="margin-top:10px">선호·요청 메모 (예: 금연층, 높은 층, 추가 수건)</label><textarea id="fM">${esc(c.memo)}</textarea>
+   <div class="grid2" style="margin-top:10px"><label style="font-size:14px;color:var(--txt)"><input type="checkbox" id="fS" style="width:auto" ${c.consent?'checked':''}> 문자·쿠폰 안내 수신 동의</label>
+   <label style="font-size:14px;color:var(--txt)"><input type="checkbox" id="fB" style="width:auto" ${c.black?'checked':''}> 주의 고객(블랙리스트)</label></div>
+   <label>주의 사유</label><input id="fBR" value="${esc(c.blackReason)}" placeholder="예: 기물 파손, 흡연, 미결제">
+   ${hist.length?`<h3 style="font-size:14px;margin:14px 0 6px">이용 이력 (${hist.length}회)</h3><div style="max-height:180px;overflow:auto"><table><tr><th>입실</th><th>객실</th><th>구분</th><th>경로</th><th class="num">금액</th></tr>${hist.map(s=>`<tr><td>${dt(s.inAt)}</td><td>${s.roomNo}</td><td>${s.kind}</td><td>${esc(s.channel)}</td><td class="num">${won(s.amount)}</td></tr>`).join('')}</table></div>`:''}
+   <div class="foot">${id?'<button class="btn r" id="fDel">삭제</button>':''}<button class="btn g" onclick="closeModal()">닫기</button><button class="btn" id="fOk">저장</button></div>`);
+  $('#fOk').onclick=()=>{c.name=$('#fN').value.trim()||'손님';c.phone=$('#fP').value.trim();c.car=$('#fC').value.trim();c.grade=$('#fG').value;c.memo=$('#fM').value;
+    c.consent=$('#fS').checked;c.black=$('#fB').checked;c.blackReason=$('#fBR').value;
+    if(!id){const d=digits(c.phone);if(d&&DB.customers.find(x=>digits(x.phone)===d))return alert('같은 전화번호 고객이 이미 있습니다.');DB.customers.push(c)}
+    save();closeModal();render();toast('저장했습니다')};
+  if(id)$('#fDel').onclick=()=>{if(!confirm('이 고객 정보를 삭제할까요? (이용 장부의 금액 기록은 남고 고객 연결만 끊깁니다)'))return;
+    DB.customers=DB.customers.filter(x=>x.id!==id);DB.stays.forEach(s=>{if(s.customerId===id){s.customerId=null;s.guestLabel='삭제된 고객'}});save();closeModal();render();};
+}
+
+/* ===== 예약 ===== */
+function rResv(){const today=ymd(Date.now());
+  const list=DB.resv.filter(r=>r.date>=today||r.status==='예정').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  $('#v-resv').innerHTML=`<div class="card"><div class="row"><b style="font-size:16px">예약</b><button class="btn" id="rAdd" style="margin-left:auto">＋ 예약 등록</button></div>
+   <div style="overflow:auto;margin-top:10px"><table><tr><th>날짜</th><th>시간</th><th>고객</th><th>구분</th><th>객실타입</th><th>경로</th><th>상태</th><th>메모</th><th></th></tr>
+   ${list.map(r=>{const c=custOf(r.customerId);return `<tr><td>${r.date}${r.date===today?' <span class="tag reg">오늘</span>':''}</td><td>${esc(r.time)}</td><td>${esc(c?c.name:r.name)} ${c?gradeTag(c):''}<br><span class="muted">${esc(maskPhone(c?c.phone:r.phone))}</span></td><td>${r.kind}</td><td>${esc(typeOf(r.roomType).name)}</td><td>${esc(r.channel)}</td><td>${r.status}</td><td class="muted">${esc(r.memo)}</td>
+   <td>${r.status==='예정'?`<button class="btn sm" data-in="${r.id}">입실</button> <button class="btn g sm" data-no="${r.id}">노쇼</button> <button class="btn g sm" data-cx="${r.id}">취소</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="9" class="muted">예약이 없습니다.</td></tr>'}
+   </table></div></div>`;
+  $('#rAdd').onclick=resvForm;
+  const find=id=>DB.resv.find(r=>r.id===id);
+  $('#v-resv').querySelectorAll('[data-no]').forEach(b=>b.onclick=()=>{const r=find(b.dataset.no);r.status='노쇼';const c=custOf(r.customerId);if(c)c.memo=(c.memo?c.memo+' / ':'')+`노쇼 ${r.date}`;save();render()});
+  $('#v-resv').querySelectorAll('[data-cx]').forEach(b=>b.onclick=()=>{find(b.dataset.cx).status='취소';save();render()});
+  $('#v-resv').querySelectorAll('[data-in]').forEach(b=>b.onclick=()=>{const r=find(b.dataset.in);
+    roomPicker(`예약 입실 · ${custOf(r.customerId)?.name||r.name} · ${typeOf(r.roomType).name}`,r.roomType,no=>checkinForm(no,r));});
+}
+function resvForm(){const state={cid:null,newCust:null};const t=new Date();
+  openModal(`<h2>예약 등록</h2>${custPicker()}
+   <div class="grid3" style="margin-top:10px"><div><label>날짜</label><input id="rD" type="date" value="${ymd(t)}"></div><div><label>도착 예정</label><input id="rT" type="time" value="20:00"></div>
+   <div><label>구분</label><select id="rK"><option>숙박</option><option>대실</option></select></div>
+   <div><label>객실 타입</label><select id="rRT">${DB.settings.roomTypes.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></div>
+   <div><label>경로</label><select id="rC">${CHANNELS.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+   <label style="margin-top:10px">메모 (OTA 예약번호 등)</label><input id="rM">
+   <div class="foot"><button class="btn g" onclick="closeModal()">취소</button><button class="btn" id="rOk">저장</button></div>`);
+  bindPicker(state);
+  $('#rOk').onclick=()=>{const cid=takeCust(state);const q=$('#cq').value.trim();
+    if(!cid&&!q)return alert('고객을 선택하거나 이름을 입력하세요');
+    DB.resv.push({id:uid(),customerId:cid,name:cid?'':q,phone:'',date:$('#rD').value,time:$('#rT').value,kind:$('#rK').value,roomType:$('#rRT').value,channel:$('#rC').value,memo:$('#rM').value,status:'예정'});
+    save();closeModal();render();toast('예약 등록')};
+}
+
+/* ===== 매출·장부 ===== */
+let salesDay=ymd(Date.now());
+function rSales(){
+  const day=DB.stays.filter(s=>ymd(s.inAt)===salesDay).sort((a,b)=>a.inAt-b.inAt);
+  const month=salesDay.slice(0,7);const mon=DB.stays.filter(s=>ymd(s.inAt).startsWith(month));
+  const sum=(arr,f)=>arr.reduce((a,s)=>a+(f(s)?(+s.amount||0):0),0);
+  const grp=(arr,key)=>{const o={};arr.forEach(s=>{o[s[key]]=(o[s[key]]||0)+(+s.amount||0)});return Object.entries(o).map(([k,v])=>`<span class="tag">${esc(k)} ${won(v)}</span>`).join(' ')};
+  const rooms=DB.settings.rooms.length;
+  const days=new Date(+month.slice(0,4),+month.slice(5,7),0).getDate();
+  const sukN=mon.filter(s=>s.kind==='숙박').length;
+  $('#v-sales').innerHTML=`<div class="card"><div class="row"><label style="margin:0">날짜</label><input type="date" id="sD" value="${salesDay}" style="width:auto">
+    <button class="btn g" id="sCsv" style="margin-left:auto">이달 장부 CSV</button></div></div>
+   <div class="stats"><div class="stat"><span>${salesDay} 매출</span><b>${won(sum(day,()=>1))}</b></div>
+    <div class="stat"><span>대실 / 숙박</span><b>${day.filter(s=>s.kind==='대실').length} / ${day.filter(s=>s.kind==='숙박').length}건</b></div>
+    <div class="stat"><span>미수</span><b style="color:var(--red)">${won(sum(day,s=>s.pay==='미수'))}</b></div>
+    <div class="stat"><span>${month} 월 매출</span><b>${won(sum(mon,()=>1))}</b></div>
+    <div class="stat"><span>월 숙박 객실가동률</span><b>${rooms?Math.round(sukN/(rooms*days)*100):0}%</b></div></div>
+   <div class="card"><div><b>결제수단</b> ${grp(day,'pay')||'<span class="muted">-</span>'}</div><div style="margin-top:6px"><b>유입경로</b> ${grp(day,'channel')||'<span class="muted">-</span>'}</div></div>
+   <div class="card" style="overflow:auto"><table><tr><th>입실</th><th>퇴실</th><th>객실</th><th>구분</th><th>고객</th><th>경로</th><th>결제</th><th class="num">금액</th><th>신분증</th><th></th></tr>
+   ${day.map(s=>{const c=custOf(s.customerId);return `<tr><td>${hm(s.inAt)}</td><td>${s.outAt?hm(s.outAt):'<span class="tag reg">이용중</span>'}</td><td>${s.roomNo}</td><td>${s.kind}</td><td>${esc(c?c.name:s.guestLabel)}</td><td>${esc(s.channel)}</td><td>${esc(s.pay)}</td><td class="num">${won(s.amount)}</td><td>${s.idChecked?'✔':'<span style="color:var(--red)">미확인</span>'}</td><td><button class="btn g sm" data-ed="${s.id}">수정</button></td></tr>`}).join('')||'<tr><td colspan="10" class="muted">기록 없음</td></tr>'}
+   </table></div>`;
+  $('#sD').onchange=e=>{salesDay=e.target.value;rSales()};
+  $('#sCsv').onclick=()=>exportStaysCsv(month);
+  $('#v-sales').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const s=stayOf(b.dataset.ed);
+    openModal(`<h2>장부 수정 · ${s.roomNo}호 ${dt(s.inAt)}</h2><div class="grid3"><div><label>금액</label><input id="eA" type="number" value="${s.amount}"></div>
+     <div><label>결제</label><select id="eP">${PAYS.map(p=>`<option ${p===s.pay?'selected':''}>${p}</option>`).join('')}</select></div>
+     <div><label>경로</label><select id="eC">${CHANNELS.map(p=>`<option ${p===s.channel?'selected':''}>${p}</option>`).join('')}</select></div></div>
+     <label style="margin-top:10px">메모</label><input id="eM" value="${esc(s.memo)}">
+     <div class="foot"><button class="btn r" id="eDel">기록 삭제</button><button class="btn g" onclick="closeModal()">닫기</button><button class="btn" id="eOk">저장</button></div>`);
+    $('#eOk').onclick=()=>{s.amount=+$('#eA').value||0;s.pay=$('#eP').value;s.channel=$('#eC').value;s.memo=$('#eM').value;save();closeModal();render()};
+    $('#eDel').onclick=()=>{if(!confirm('이 장부 기록을 삭제할까요?'))return;if(!s.outAt){const st=stOf(s.roomNo);if(st.stayId===s.id){st.status='vacant';st.stayId=null}}
+      DB.stays=DB.stays.filter(x=>x.id!==s.id);save();closeModal();render()};});
+}
+
+/* ===== 내보내기 ===== */
+function dl(name,text,type){const b=new Blob([text],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+const csvCell=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+function exportCustCsv(){const rows=[['이름','전화','차량','등급','방문','누적금액','최근방문','문자동의','주의','주의사유','메모']];
+  DB.customers.forEach(c=>{const s=custStats(c.id);rows.push([c.name,fmtPhone(c.phone),c.car,c.grade,s.visits,s.spent,s.last?ymd(s.last):'',c.consent?'Y':'N',c.black?'Y':'N',c.blackReason,c.memo])});
+  dl(`이모텔_고객_${ymd(Date.now())}.csv`,'\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'),'text/csv')}
+function exportStaysCsv(month){const rows=[['입실','퇴실','객실','타입','구분','고객','경로','결제','금액','인원','차량','신분증확인','메모']];
+  DB.stays.filter(s=>ymd(s.inAt).startsWith(month)).sort((a,b)=>a.inAt-b.inAt).forEach(s=>{const c=custOf(s.customerId);
+    rows.push([dt(s.inAt),s.outAt?dt(s.outAt):'',s.roomNo,typeOf(s.roomType).name,s.kind,c?c.name:s.guestLabel,s.channel,s.pay,s.amount,s.guests,s.car,s.idChecked?'Y':'N',s.memo])});
+  dl(`이모텔_장부_${month}.csv`,'\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'),'text/csv')}
+
+/* ===== 설정·백업 ===== */
+function rSet(){const s=DB.settings;
+  $('#v-set').innerHTML=`<div class="card"><h3 style="margin-top:0">업소 정보</h3><div class="grid2">
+   <div><label>상호</label><input id="sN" value="${esc(s.name)}"></div><div><label>대표 전화</label><input id="sP" value="${esc(s.phone)}"></div></div>
+   <label style="margin-top:8px">주소</label><input id="sA" value="${esc(s.address)}">
+   <div class="grid3" style="margin-top:8px"><div><label>대실 기본 시간</label><input id="sDH" type="number" value="${s.daesilHours}"></div>
+   <div><label>숙박 입실</label><input id="sCI" type="time" value="${s.checkIn}"></div><div><label>숙박 퇴실</label><input id="sCO" type="time" value="${s.checkOut}"></div>
+   <div><label>주차 대수</label><input id="sPK" type="number" value="${s.parking}"></div><div><label>잠금 PIN (비우면 해제)</label><input id="sPin" type="password" inputmode="numeric" value="${esc(s.pin)}"></div>
+   <div><label>미동의 고객 보관일</label><input id="sRet" type="number" value="${s.retentionDays}"></div></div>
+   <div class="foot"><button class="btn" id="sOk">저장</button></div></div>
+
+  <div class="card"><h3 style="margin-top:0">객실 타입·요금</h3><table id="tT"><tr><th>타입명</th><th class="num">대실</th><th class="num">숙박</th><th></th></tr>
+   ${s.roomTypes.map((t,i)=>`<tr><td><input data-t="${i}" data-k="name" value="${esc(t.name)}"></td><td><input data-t="${i}" data-k="daesil" type="number" step="1000" value="${t.daesil}"></td><td><input data-t="${i}" data-k="sukbak" type="number" step="1000" value="${t.sukbak}"></td><td><button class="btn g sm" data-td="${i}">삭제</button></td></tr>`).join('')}</table>
+   <div class="foot"><button class="btn g" id="tAdd">＋ 타입 추가</button><button class="btn" id="tOk">요금 저장</button></div></div>
+
+  <div class="card"><h3 style="margin-top:0">객실 구성</h3><p class="muted">한 줄에 한 객실: <b>호수,층,타입명</b> (예: 201,2,스탠다드). 기본값은 2~6층 층당 6실 예시입니다. 실제 호수로 바꿔 주세요.</p>
+   <textarea id="rmTxt" style="min-height:180px;font-family:monospace">${s.rooms.map(r=>`${r.no},${r.floor},${typeOf(r.type).name}`).join('\n')}</textarea>
+   <div class="foot"><button class="btn" id="rmOk">객실 구성 저장</button></div></div>
+
+  <div class="card"><h3 style="margin-top:0">백업·개인정보</h3>
+   <p class="muted">모든 데이터는 <b>이 기기의 이 브라우저에만</b> 저장됩니다. 브라우저 기록을 지우면 사라지니 매일 백업 파일을 받아 두세요. 다른 PC로 옮길 때도 백업 파일을 불러오면 됩니다.</p>
+   <div class="row"><button class="btn" id="bExp">백업 파일 받기(JSON)</button><label class="btn g" style="margin:0;color:var(--txt);font-size:15px">백업 불러오기<input type="file" id="bImp" accept=".json" class="hide"></label>
+   <button class="btn g" id="bRet">보관기간 지난 미동의 고객 정리</button><button class="btn r" id="bReset">전체 초기화</button></div>
+   <p class="muted" style="margin-top:10px">정리 기능: 문자 수신에 동의하지 않았고 마지막 방문이 보관일(현재 ${s.retentionDays}일)을 넘긴 고객의 이름·전화·차량을 지웁니다. 매출 장부 금액은 남습니다. 주의 고객은 지우지 않습니다.</p></div>
+  <div class="card"><h3 style="margin-top:0">최근 작업 기록</h3><div style="max-height:200px;overflow:auto;font-size:13px">${DB.log.slice(0,60).map(l=>`<div>${dt(l.at)} · ${esc(l.msg)}</div>`).join('')||'<span class="muted">없음</span>'}</div></div>`;
+  $('#sOk').onclick=()=>{Object.assign(s,{name:$('#sN').value,phone:$('#sP').value,address:$('#sA').value,daesilHours:+$('#sDH').value||4,checkIn:$('#sCI').value,checkOut:$('#sCO').value,parking:+$('#sPK').value||0,pin:$('#sPin').value.trim(),retentionDays:+$('#sRet').value||365});save();render();toast('저장했습니다')};
+  $('#tOk').onclick=()=>{document.querySelectorAll('#tT [data-t]').forEach(i=>{const t=s.roomTypes[+i.dataset.t];t[i.dataset.k]=i.dataset.k==='name'?i.value:+i.value||0});save();render();toast('요금 저장')};
+  $('#tAdd').onclick=()=>{s.roomTypes.push({id:uid(),name:'새 타입',daesil:20000,sukbak:40000});save();rSet()};
+  document.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>{const t=s.roomTypes[+b.dataset.td];if(s.rooms.some(r=>r.type===t.id))return alert('이 타입을 쓰는 객실이 있어 삭제할 수 없습니다.');s.roomTypes.splice(+b.dataset.td,1);save();rSet()});
+  $('#rmOk').onclick=()=>{const out=[],bad=[];$('#rmTxt').value.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{const [no,fl,tn]=l.split(',').map(x=>(x||'').trim());
+      const t=s.roomTypes.find(x=>x.name===tn);if(!no||!+fl||!t)bad.push(l);else out.push({no,floor:+fl,type:t.id})});
+    if(bad.length)return alert('형식이 틀린 줄 (타입명은 위 표와 똑같이):\n'+bad.join('\n'));
+    const busy=Object.entries(DB.roomState).filter(([no,st])=>st.status==='occupied'&&!out.find(r=>r.no===no));if(busy.length)return alert('사용중인 객실을 뺄 수 없습니다: '+busy.map(b=>b[0]).join(','));
+    s.rooms=out;save();render();toast(`객실 ${out.length}개 저장`)};
+  $('#bExp').onclick=()=>dl(`이모텔_백업_${ymd(Date.now())}.json`,JSON.stringify(DB),'application/json');
+  $('#bImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.settings||!d.customers)throw 0;
+      if(!confirm('현재 데이터를 백업 파일 내용으로 바꿉니다. 계속할까요?'))return;localStorage.setItem(KEY,JSON.stringify(d));load();render();toast('불러오기 완료')}catch(x){alert('올바른 백업 파일이 아닙니다')}};r.readAsText(f)};
+  $('#bRet').onclick=()=>{const lim=Date.now()-s.retentionDays*864e5;let n=0;
+    DB.customers.forEach(c=>{if(c.consent||c.black||c.purged)return;const st=custStats(c.id);if((st.last||c.createdAt)<lim){c.name='(정리됨)';c.phone='';c.car='';c.memo='';c.purged=true;n++}});
+    save();render();toast(`${n}명 정리`)};
+  $('#bReset').onclick=()=>{if(prompt('모든 데이터를 지웁니다. 계속하려면 "초기화"를 입력하세요')!=='초기화')return;DB=defaults();save();render();toast('초기화 완료')};
+}
+
+/* ===== 잠금·시계 ===== */
+function lockCheck(){if(!DB.settings.pin)return;$('#lock').style.display='flex';$('#lockPin').focus();
+  const go=()=>{if($('#lockPin').value===DB.settings.pin){$('#lock').style.display='none';$('#lockPin').value=''}else{toast('PIN이 틀렸습니다')}};
+  $('#lockBtn').onclick=go;$('#lockPin').onkeydown=e=>{if(e.key==='Enter')go()};}
+let idle=Date.now();['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>idle=Date.now()));
+setInterval(()=>{const n=new Date();$('#clock').textContent=`${ymd(n)} ${hm(n)}:${pad(n.getSeconds())}`;
+  if(DB.settings.pin&&Date.now()-idle>10*60e3&&$('#lock').style.display!=='flex')lockCheck();},1000);
+setInterval(()=>{if(VIEW==='board'&&$('#mbg').style.display!=='flex')rBoard()},30000);
+render();lockCheck();
+</script>
+</body>
+</html>
