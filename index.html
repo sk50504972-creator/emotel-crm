@@ -156,6 +156,7 @@ label.chk{font-size:14px;color:var(--txt);display:flex;align-items:center;gap:4p
   <button data-v="home" class="on"><span class="ic">🏠</span>홈 대시보드<span class="badge hide" id="bdHome"></span></button>
   <button data-v="board"><span class="ic">🛏️</span>객실현황<span class="badge hide" id="bdBoard"></span></button>
   <button data-v="resv"><span class="ic">📅</span>예약·공실 캘린더<span class="badge hide" id="bdResv"></span></button>
+  <button data-v="sync"><span class="ic">🔗</span>채널 연동 (OTA)</button>
   <div class="grp">판매</div>
   <button data-v="rate"><span class="ic">💰</span>요금·채널</button>
   <button data-v="cust"><span class="ic">👥</span>고객</button>
@@ -170,6 +171,7 @@ label.chk{font-size:14px;color:var(--txt);display:flex;align-items:center;gap:4p
   <section id="v-home"></section>
   <section id="v-board" class="hide"></section>
   <section id="v-resv" class="hide"></section>
+  <section id="v-sync" class="hide"></section>
   <section id="v-rate" class="hide"></section>
   <section id="v-cust" class="hide"></section>
   <section id="v-mkt" class="hide"></section>
@@ -181,13 +183,14 @@ label.chk{font-size:14px;color:var(--txt);display:flex;align-items:center;gap:4p
 </div>
 <div class="modal-bg" id="mbg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<button id="aiFab" title="AI 도우미" style="position:fixed;right:18px;bottom:18px;width:54px;height:54px;border-radius:50%;border:0;background:var(--accent);font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;z-index:35">🤖</button>
 
 <script>
 /* =====================================================================
    이모텔 매니저 v2 — 모텔·호텔 관리자용 단일 파일 앱 (2026-10-27)
    데이터는 이 기기 브라우저 localStorage에만 저장된다. 서버 없음.
    ===================================================================== */
-const KEY='emotel_mgr_v2', OLDKEY='emotel_crm_v1', APPVER='2.0.0';
+const KEY='emotel_mgr_v2', OLDKEY='emotel_crm_v1', APPVER='2.1.0';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const PAYS=['카드','현금','계좌이체','OTA선결제','미수'];
 const STATUS={vacant:'공실',occupied:'사용중',dirty:'청소필요',cleaning:'청소중',maint:'점검·사용불가'};
@@ -223,7 +226,8 @@ function defaults(){
       dayAdd:{sukbak:{0:0,1:0,2:0,3:0,4:0,5:5000,6:10000,hol:10000,eve:10000},daesil:{0:0,1:0,2:0,3:0,4:0,5:0,6:5000,hol:5000,eve:5000}},
       holidays:[],points:{enabled:true,rate:3,stampGoal:10,stampReward:'대실 1회 무료'},
       smsFooter:'무료수신거부 080-000-0000',links:{naverPlace:'',kakaoMap:'',google:'',instagram:''},
-      lastBackup:0,autoLockMin:10},
+      lastBackup:0,autoLockMin:10,
+      guestApp:{url:'https://balhae.claimworks.kr/emotel/',secret:'emotel-2026',welcomeDiscount:3000,welcomeDesc:'대실·숙박 3,000원 할인',stampGoal:10,stampReward:'대실 1회 무료'}},
     customers:[],stays:[],resv:[],roomState:{},rateOverrides:{},closeouts:{},
     coupons:[],promos:[],campaigns:[],reviews:[],tasks:[],tickets:[],inventory,invLog:[],expenses:[],shifts:[],attendance:[],handover:[],lost:[],
     log:[]};
@@ -325,6 +329,7 @@ function isClosed(d,chId){return !!(DB.closeouts[d]&&DB.closeouts[d][chId])}
 function openModal(html,wide){const m=$('#modal');m.className='modal'+(wide?' wide':'');m.innerHTML=html;$('#mbg').style.display='flex';$('#mbg').scrollTop=0}
 function closeModal(){$('#mbg').style.display='none';$('#modal').innerHTML=''}
 $('#mbg').addEventListener('click',e=>{if(e.target.id==='mbg')closeModal()});
+document.getElementById('aiFab').onclick=()=>aiHelperModal();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#mbg').style.display==='flex')closeModal()});
 let VIEW='home';const SUB={};
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.v)});
@@ -337,7 +342,7 @@ function bindSub(view,sec){sec.querySelectorAll('[data-sub]').forEach(b=>b.oncli
 function render(){$('#hName').textContent=DB.settings.name+' 매니저';$('#hAddr').textContent=DB.settings.address+(DB.settings.phone?' · '+DB.settings.phone:'');
   $('#staffBtn').textContent=who()?'👤 '+who():'근무자 선택';
   badges();
-  ({home:rHome,board:rBoard,resv:rResv,rate:rRate,cust:rCust,mkt:rMkt,ops:rOps,staff:rStaff,report:rReport,set:rSet})[VIEW]();}
+  ({home:rHome,board:rBoard,resv:rResv,sync:rSync,rate:rRate,cust:rCust,mkt:rMkt,ops:rOps,staff:rStaff,report:rReport,set:rSet})[VIEW]();}
 function badges(){const now=Date.now(),td=today();
   const over=DB.settings.rooms.filter(r=>{const st=stOf(r.no);if(st.status!=='occupied')return false;const s=stayOf(st.stayId);return s&&s.dueAt<now}).length;
   const dirty=DB.settings.rooms.filter(r=>['dirty','cleaning'].includes(stOf(r.no).status)).length;
@@ -595,7 +600,7 @@ function checkinForm(no,fromResv){const r=roomOf(no),t=typeOf(r.type);const stat
     <div><label>경로</label><select id="ciCh">${chOpts}</select></div>
     <div><label>결제수단</label><select id="ciPay">${PAYS.map(c=>`<option>${c}</option>`).join('')}</select></div>
     <div><label>금액 <span id="ciQ" class="muted"></span></label><input id="ciAmt" type="number" step="1000"></div>
-    <div><label>쿠폰·할인</label><select id="ciCp"><option value="">없음</option>${cps.map(c=>`<option value="${c.id}">${esc(c.name)} (${c.type==='%'?c.value+'%':won(c.value)})</option>`).join('')}<option value="_manual">직접 입력</option></select></div>
+    <div><label>쿠폰·할인</label><select id="ciCp"><option value="">없음</option>${cps.map(c=>`<option value="${c.id}">${esc(c.name)} (${c.type==='%'?c.value+'%':won(c.value)})</option>`).join('')}<option value="guestapp">앱 설치 쿠폰(고객앱) -${num(DB.settings.guestApp.welcomeDiscount)}</option><option value="gueststamp">스탬프 보상(고객앱) ${esc(DB.settings.guestApp.stampReward)}</option><option value="_manual">직접 입력</option></select></div>
     <div><label>인원</label><input id="ciG" type="number" min="1" value="${fromResv?.guests||2}"></div>
     <div><label>차량번호</label><input id="ciCar" placeholder="없으면 비움"></div>
     <div><label>OTA 예약번호</label><input id="ciOta" value="${esc(fromResv?.otaNo||'')}"></div></div>
@@ -608,7 +613,7 @@ function checkinForm(no,fromResv){const r=roomOf(no),t=typeOf(r.type);const stat
   if(fromResv)$('#ciKind').value=fromResv.kind;
   const calc=()=>{const kind=$('#ciKind').value,n=Math.max(1,+$('#ciN').value||1),ch=$('#ciCh').value;$('#ciNW').style.visibility=kind==='숙박'?'visible':'hidden';
     let total=0,notes=[];if(kind==='대실'){const q=quote(r.type,'대실',td,ch);total=q.price;notes=q.notes}else{for(let i=0;i<n;i++){const q=quote(r.type,'숙박',addDays(td,i),ch);total+=q.price;if(i===0)notes=q.notes}}
-    const cp=$('#ciCp').value;let disc=0;if(cp==='_manual'){disc=+$('#ciDisc').value||0}else if(cp){const c=DB.coupons.find(x=>x.id===cp);disc=c.type==='%'?Math.round(total*c.value/100):c.value}
+    const cp=$('#ciCp').value;let disc=0;if(cp==='_manual'){disc=+$('#ciDisc').value||0}else if(cp==='guestapp'){disc=DB.settings.guestApp.welcomeDiscount}else if(cp==='gueststamp'){disc=kind==='대실'?total:0}else if(cp){const c=DB.coupons.find(x=>x.id===cp);disc=c.type==='%'?Math.round(total*c.value/100):c.value}
     $('#ciManual').classList.toggle('hide',cp!=='_manual');
     if(fromResv&&fromResv.amount&&!$('#ciAmt').dataset.touched&&!cp){$('#ciAmt').value=fromResv.amount;$('#ciQ').textContent='(예약 금액)';return}
     $('#ciAmt').value=Math.max(0,total-disc);$('#ciQ').textContent='('+notes.join(', ')+(disc?', 할인 -'+num(disc):'')+')';$('#ciAmt').dataset.disc=disc};
@@ -621,9 +626,9 @@ function checkinForm(no,fromResv){const r=roomOf(no),t=typeOf(r.type);const stat
     if(c&&c.black&&!confirm('주의 고객입니다. 입실을 진행할까요?'))return;
     const now=Date.now(),kind=$('#ciKind').value,car=$('#ciCar').value.trim(),n=kind==='숙박'?Math.max(1,+$('#ciN').value||1):0;
     if(c&&car)c.car=car;
-    const cp=$('#ciCp').value;const coupon=cp&&cp!=='_manual'?DB.coupons.find(x=>x.id===cp):null;if(coupon)coupon.used=(coupon.used||0)+1;
+    const cp=$('#ciCp').value;const coupon=cp&&!['_manual','guestapp','gueststamp'].includes(cp)?DB.coupons.find(x=>x.id===cp):null;if(coupon)coupon.used=(coupon.used||0)+1;
     const s={id:uid(),roomNo:no,roomType:r.type,customerId:cid,guestLabel:cid?'':((fromResv&&fromResv.name)||'미등록 손님'),kind,nights:n,channel:$('#ciCh').value,pay:$('#ciPay').value,
-      amount:+$('#ciAmt').value||0,discount:+($('#ciAmt').dataset.disc||0),couponId:coupon?coupon.id:'',guests:+$('#ciG').value||1,car,otaNo:$('#ciOta').value.trim(),idChecked:$('#ciId').checked,inAt:now,dueAt:dueFor(kind,now,n),outAt:null,memo:$('#ciMemo').value,extras:[],staffId:CUR_STAFF,resvId:fromResv?fromResv.id:''};
+      amount:+$('#ciAmt').value||0,discount:+($('#ciAmt').dataset.disc||0),couponId:coupon?coupon.id:(['guestapp','gueststamp'].includes(cp)?cp:''),guests:+$('#ciG').value||1,car,otaNo:$('#ciOta').value.trim(),idChecked:$('#ciId').checked,inAt:now,dueAt:dueFor(kind,now,n),outAt:null,memo:$('#ciMemo').value,extras:[],staffId:CUR_STAFF,resvId:fromResv?fromResv.id:''};
     DB.stays.push(s);Object.assign(stOf(no),{status:'occupied',stayId:s.id,note:''});
     if(fromResv){fromResv.status='입실';fromResv.stayId=s.id}
     if(c)autoGrade(c);
@@ -857,7 +862,7 @@ function custForm(id){const c=id?custOf(id):{id:uid(),name:'',phone:'',car:'',gr
 /* ===================== 마케팅 ===================== */
 let MKT_SEG='consent';
 function rMkt(){const sec=$('#v-mkt');const td=today();
-  sec.innerHTML=subtabs('mkt',[['dash','마케팅 현황'],['coupon','쿠폰'],['sms','문자 캠페인'],['rv','리뷰 관리'],['online','온라인 노출']])+'<div id="mktBody"></div>';bindSub('mkt',sec);
+  sec.innerHTML=subtabs('mkt',[['dash','마케팅 현황'],['app','앱 혜택·QR'],['coupon','쿠폰'],['sms','문자 캠페인'],['rv','리뷰 관리'],['online','온라인 노출']])+'<div id="mktBody"></div>';bindSub('mkt',sec);
   const body=$('#mktBody');const cur=SUB.mkt||'dash';
   if(cur==='dash'){const all=DB.customers.filter(c=>!c.purged);const m30=DB.stays.filter(s=>s.inAt>Date.now()-30*864e5);const newC=m30.filter(s=>{const c=custOf(s.customerId);return c&&custStats(c.id).first===s.inAt}).length;
     const byCh=groupBy(m30,s=>s.channel);const rv=DB.reviews;const avg=rv.length?(sum(rv,r=>r.rating)/rv.length).toFixed(1):'-';
@@ -870,11 +875,13 @@ function rMkt(){const sec=$('#v-mkt');const td=today();
        rv.filter(r=>!r.reply).length?['⭐',`미답변 리뷰 ${rv.filter(r=>!r.reply).length}건 답변하기`,'rv']:null,
        !DB.promos.some(p=>p.active&&p.to>=td)?['💰','진행 중인 프로모션이 없습니다. 평일 대실 특가·연박 할인 등록','promo']:null,
        !DB.settings.links.naverPlace?['📍','네이버 플레이스 주소를 등록하고 리뷰·사진을 최신화','online']:null,
+       ['🎁','프런트·객실에 고객앱 QR을 비치해 설치 쿠폰으로 재방문 유도','app'],
        ['📣','객실 사진·편의시설 정보를 OTA 파트너센터에서 분기마다 갱신','online']
       ].filter(Boolean).map(([ic,t,sub,seg])=>`<div class="todo" data-sub="${sub}" data-seg="${seg||''}"><span class="ic">${ic}</span><span>${esc(t)}</span><span style="margin-left:auto;color:var(--mut)">›</span></div>`).join('')}</div></div>
      <div class="card"><h3>최근 캠페인</h3><table><tr><th>일시</th><th>이름</th><th>대상</th><th class="num">인원</th><th>문안</th></tr>${DB.campaigns.slice(0,10).map(c=>`<tr><td>${dt(c.at)}</td><td>${esc(c.name)}</td><td>${esc(c.segLabel)}</td><td class="num">${c.count}</td><td class="muted">${esc(c.text.slice(0,50))}…</td></tr>`).join('')||'<tr><td colspan="5" class="muted">아직 없음</td></tr>'}</table></div>`;
     $$('#mktBody [data-sub]').forEach(el=>el.onclick=()=>{if(el.dataset.sub==='promo'){SUB.rate='promo';return go('rate')}if(el.dataset.seg)MKT_SEG=el.dataset.seg;SUB.mkt=el.dataset.sub;render()});
   }
+  else if(cur==='app'){rMktApp(body)}
   else if(cur==='coupon'){
     body.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">쿠폰</h3><button class="btn" id="cpAdd" style="margin-left:auto">＋ 쿠폰 만들기</button></div><p class="muted">입실 화면의 「쿠폰·할인」에서 골라 적용하면 사용 횟수가 올라갑니다. 문자 캠페인 문안에 쿠폰 코드를 넣어 보내세요.</p>
      <div class="tscroll"><table><tr><th>코드</th><th>이름</th><th class="num">할인</th><th>유효기간</th><th>대상</th><th class="num">사용/한도</th><th>상태</th><th></th></tr>
@@ -940,6 +947,113 @@ function reviewForm(r){const edit=!!r;const v=r||{channel:'yanolja',date:today()
   $('#vCopy').onclick=()=>navigator.clipboard.writeText($('#vP').value).then(()=>toast('복사했습니다'));
   $('#vOk').onclick=()=>{const o={channel:$('#vC').value,date:$('#vD').value,rating:+$('#vR').value,author:$('#vA').value,roomNo:$('#vRm').value,text:$('#vT').value,reply:$('#vP').value,repliedAt:$('#vP').value?Date.now():null};if(edit)Object.assign(r,o);else DB.reviews.unshift({id:uid(),...o});save();closeModal();render()};
   if($('#vDel'))$('#vDel').onclick=()=>{DB.reviews=DB.reviews.filter(x=>x.id!==r.id);save();closeModal();render()}}
+
+/* ===================== 채널 연동 (OTA 예약·리뷰 가져오기) ===================== */
+const COLMAP={otaNo:['예약번호','예약 번호','주문번호','예약id','예약코드','booking','reservation'],name:['예약자','고객명','이름','성명','투숙객','guest','name'],phone:['연락처','전화','휴대폰','핸드폰','phone','mobile'],
+  checkIn:['체크인','입실','이용일','숙박일','투숙일','check-in','checkin','시작'],checkOut:['체크아웃','퇴실','check-out','checkout','종료'],room:['객실','상품','룸','room','타입'],kind:['구분','이용유형','유형','type'],
+  amount:['금액','결제금액','판매가','총액','요금','price','amount'],status:['상태','예약상태','status'],guests:['인원','명','guests'],time:['도착','입실시간','시간'],memo:['요청','메모','비고','특이']};
+function detectCols(headers){const m={};headers.forEach((h,i)=>{const hl=String(h).toLowerCase().replace(/\s/g,'');for(const [k,ws] of Object.entries(COLMAP)){if(m[k]!==undefined)continue;if(ws.some(w=>hl.includes(w.toLowerCase().replace(/\s/g,'')))){m[k]=i;break}}});return m}
+function parseTable(text){const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim());if(!lines.length)return {headers:[],rows:[]};
+  const probe=lines.find(l=>l.includes('\t'))?'\t':lines[0].split(',').length>3?',':/\s{2,}|\|/;const sep=probe;
+  const split=l=>sep===','?(l.match(/("([^"]|"")*"|[^,]*)(,|$)/g)||[]).map(c=>c.replace(/,$/,'').replace(/^"|"$/g,'').replace(/""/g,'"')).filter((c,i,a)=>i<a.length-1||c!==''):l.split(sep).map(x=>x.trim());
+  const rows=lines.map(split);return {headers:rows[0],rows:rows.slice(1)}}
+function parseDate(v){if(!v)return '';const s=String(v).trim();let m=s.match(/(\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(m)return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m=s.match(/^(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(m){const y=new Date().getFullYear();return `${y}-${pad(m[1])}-${pad(m[2])}`}return ''}
+function parseTime(v){const m=String(v||'').match(/(\d{1,2}):(\d{2})/);return m?`${pad(m[1])}:${m[2]}`:''}
+function guessType(name){const n=String(name||'').replace(/\s/g,'').toLowerCase();let best=null,score=0;DB.settings.roomTypes.forEach(t=>{const tn=t.name.replace(/\s/g,'').toLowerCase();let sc=0;if(n.includes(tn))sc=10+tn.length;else if(tn.includes(n)&&n.length>=2)sc=3;else{const key=tn.replace(/\(.*\)/,'');if(key&&n.includes(key))sc=2;else if(/pc|피씨/.test(n)&&/pc/.test(tn))sc=2;else if(/트윈|twin/.test(n)&&/트윈/.test(tn))sc=2;else if(/트리플|triple|3인/.test(n)&&/트리플/.test(tn))sc=2;else if(/도보|walk/.test(n)&&/도보/.test(tn))sc=2;else if(/스탠|standard|일반/.test(n)&&/스탠다드$/.test(tn.replace(/\(.*\)/,'')))sc=1}if(sc>score){score=sc;best=t}});return best?best.id:DB.settings.roomTypes[0].id}
+function parseSmsResv(text){const o={};const g=(re)=>{const m=text.match(re);return m?m[1].trim():''};
+  o.otaNo=g(/예약\s*번호\s*[:：]?\s*([A-Za-z0-9\-]+)/)||g(/\b([A-Z]{1,3}\d{6,})\b/);o.name=g(/예약자\s*(?:명)?\s*[:：]?\s*([가-힣A-Za-z*]{2,6})/)||g(/([가-힣]{2,4})\s*(?:님|고객)/);
+  o.phone=g(/(0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})/);const ds=[...text.matchAll(/(\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/g)].map(m=>`${m[1]}-${pad(m[2])}-${pad(m[3])}`);
+  o.checkIn=g(/(?:체크인|입실)\s*[:：]?\s*([^\n]+)/)?parseDate(g(/(?:체크인|입실)\s*[:：]?\s*([^\n]+)/))||ds[0]||'':ds[0]||'';o.checkOut=g(/(?:체크아웃|퇴실)\s*[:：]?\s*([^\n]+)/)?parseDate(g(/(?:체크아웃|퇴실)\s*[:：]?\s*([^\n]+)/))||ds[1]||'':ds[1]||'';
+  o.room=g(/(?:객실|상품|룸)\s*(?:명|타입)?\s*[:：]?\s*([^\n]+)/);o.amount=(g(/(?:결제\s*금액|금액|판매가|총액)\s*[:：]?\s*([\d,]+)/)||'').replace(/,/g,'');o.kind=/대실/.test(text)?'대실':'숙박';o.time=parseTime(g(/(?:체크인|입실|도착)[^\n]*?(\d{1,2}:\d{2})/));
+  o.status=/취소/.test(text)?'취소':'예정';return o}
+function rSync(){const sec=$('#v-sync');const chs=DB.settings.channels.filter(c=>c.ota);const lg=DB.syncLog||[];
+  sec.innerHTML=`<div class="info">야놀자·여기어때·네이버는 소규모 업소에 예약 API를 직접 열지 않아, 로그인만으로 자동 동기화하려면 각사와 연동된 <b>채널매니저(PMS) 계약</b>이 필요합니다. 여기서는 파트너센터를 바로 열고, 예약 목록을 <b>복사해 붙여넣으면 자동 인식·중복 제거</b>해 들어옵니다. 예약 확정 문자·알림 내용을 붙여넣어도 됩니다.</div>
+   <div class="ql" style="margin-bottom:12px">${chs.map(c=>{const n=DB.resv.filter(r=>r.channel===c.id).length;const last=lg.find(l=>l.channel===c.id);return `<div class="card" style="margin:0;border-left:5px solid ${c.color}"><b>${esc(c.name)}</b><div class="muted">예약 ${n}건 · 마지막 가져오기 ${last?dt(last.at):'없음'}</div><div class="row" style="margin-top:8px">${c.url?`<a class="btn sm" href="${esc(c.url)}" target="_blank" rel="noopener">파트너센터 로그인</a>`:`<button class="btn g sm" data-go2="rate">주소 설정</button>`}<button class="btn g sm" data-imp="${c.id}">예약 가져오기</button><button class="btn g sm" data-rvimp="${c.id}">리뷰 가져오기</button></div></div>`}).join('')}</div>
+   <div class="card"><h3>가져오기 요령</h3><ol style="margin:0;padding-left:18px;line-height:1.8;font-size:14px"><li>파트너센터 로그인 → 예약 관리(예약 목록) → 기간 선택 → <b>엑셀 다운로드</b> 또는 표를 마우스로 끌어 선택 후 <b>복사(Ctrl+C)</b></li><li>엑셀 파일이면 열어서 전체 선택·복사</li><li>여기 「예약 가져오기」 창에 <b>붙여넣기(Ctrl+V)</b> → 열이 자동으로 인식되면 확인 후 「가져오기」</li><li>같은 예약번호는 다시 들어오지 않고, 상태가 취소로 바뀐 건은 취소 처리됩니다</li></ol>
+    <p class="muted">채널매니저로 실시간 연동을 원하면 야놀자·여기어때 담당 컨설턴트에게 연동 가능한 PMS를 문의하세요. 이 앱은 서버가 없어 PMS와 직접 연결되지 않습니다.</p></div>
+   <div class="card"><h3>연동 기록</h3><table><tr><th>일시</th><th>채널</th><th>종류</th><th class="num">신규</th><th class="num">갱신</th><th class="num">중복</th><th>담당</th></tr>${lg.slice(0,30).map(l=>`<tr><td>${dt(l.at)}</td><td>${esc(chName(l.channel))}</td><td>${l.kind}</td><td class="num">${l.added}</td><td class="num">${l.updated||0}</td><td class="num">${l.dup}</td><td>${esc(l.by||'')}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">없음</td></tr>'}</table></div>`;
+  $$('#v-sync [data-go2]').forEach(b=>b.onclick=()=>{SUB.rate='ch';go('rate')});
+  $$('#v-sync [data-imp]').forEach(b=>b.onclick=()=>importModal(b.dataset.imp));$$('#v-sync [data-rvimp]').forEach(b=>b.onclick=()=>reviewImportModal(b.dataset.rvimp));
+}
+function importModal(chId){const c=chOf(chId);
+  openModal(`<h2>${esc(c.name)} 예약 가져오기</h2><label>예약 목록(엑셀·표 복사) 또는 예약 확정 문자를 붙여넣기</label><textarea id="impT" style="min-height:160px;font-family:monospace;font-size:12px" placeholder="예약번호	예약자	연락처	체크인	체크아웃	객실	금액	상태&#10;Y2026001	김**	010-1234-5678	2026-10-30	2026-10-31	스탠다드	38,000	예약확정"></textarea>
+   <div class="row" style="margin-top:6px"><button class="btn g sm" id="impParse">인식하기</button><span class="muted" id="impMsg"></span></div><div id="impPrev"></div>
+   <div class="foot"><button class="btn g" onclick="closeModal()">닫기</button><button class="btn" id="impOk" disabled>가져오기</button></div>`,true);
+  let parsed=[];
+  $('#impParse').onclick=()=>{const text=$('#impT').value;parsed=[];
+    const {headers,rows}=parseTable(text);const cols=detectCols(headers);
+    if(rows.length&&(cols.otaNo!==undefined||cols.checkIn!==undefined||cols.name!==undefined)){rows.forEach(r=>{const g=k=>cols[k]!==undefined?r[cols[k]]||'':'';const kind=/대실/.test(g('kind')+g('room'))?'대실':'숙박';const ci=parseDate(g('checkIn')),co=parseDate(g('checkOut'));
+        parsed.push({otaNo:g('otaNo'),name:g('name'),phone:g('phone'),checkIn:ci,time:parseTime(g('time'))||parseTime(g('checkIn'))||(kind==='대실'?'':'20:00'),nights:ci&&co?Math.max(1,Math.round((new Date(co)-new Date(ci))/864e5)):1,room:g('room'),roomType:guessType(g('room')),kind,amount:+String(g('amount')).replace(/[^\d]/g,'')||0,status:/취소|cancel/i.test(g('status'))?'취소':/노쇼|noshow/i.test(g('status'))?'노쇼':'예정',guests:+String(g('guests')).replace(/\D/g,'')||2,memo:g('memo')})});
+      $('#impMsg').textContent=`표 형식 인식: ${rows.length}행 · 열 ${Object.keys(cols).map(k=>({otaNo:'예약번호',name:'예약자',phone:'연락처',checkIn:'체크인',checkOut:'체크아웃',room:'객실',kind:'구분',amount:'금액',status:'상태',guests:'인원',time:'시간',memo:'메모'})[k]).join('·')}`}
+    else{text.split(/\n{2,}|-{3,}|={3,}/).map(t=>t.trim()).filter(t=>t.length>10).forEach(t=>{const o=parseSmsResv(t);if(o.checkIn||o.otaNo)parsed.push({...o,nights:o.checkIn&&o.checkOut?Math.max(1,Math.round((new Date(o.checkOut)-new Date(o.checkIn))/864e5)):1,roomType:guessType(o.room),amount:+o.amount||0,guests:2,memo:'',time:o.time||'20:00'})});
+      $('#impMsg').textContent=parsed.length?`문자 형식 인식: ${parsed.length}건`:'인식하지 못했습니다. 첫 줄에 열 이름(예약번호·예약자·체크인…)이 있는 표를 붙여넣어 주세요.'}
+    parsed=parsed.filter(p=>p.checkIn);
+    $('#impPrev').innerHTML=parsed.length?`<div class="tscroll" style="margin-top:8px;max-height:260px;overflow:auto"><table><tr><th>예약번호</th><th>예약자</th><th>체크인</th><th>박</th><th>객실(원문→타입)</th><th>구분</th><th class="num">금액</th><th>상태</th><th>중복</th></tr>${parsed.map(p=>{const dup=p.otaNo&&DB.resv.find(r=>r.otaNo===p.otaNo);return `<tr><td>${esc(p.otaNo)}</td><td>${esc(p.name)}<br><span class="muted">${esc(maskPhone(p.phone))}</span></td><td>${p.checkIn} ${p.time}</td><td>${p.nights}</td><td>${esc(p.room)}<br>→ <select data-rt="${parsed.indexOf(p)}" style="padding:2px;width:auto">${DB.settings.roomTypes.map(t=>`<option value="${t.id}" ${t.id===p.roomType?'selected':''}>${esc(t.name)}</option>`).join('')}</select></td><td>${p.kind}</td><td class="num">${won(p.amount)}</td><td>${p.status}</td><td>${dup?(dup.status!==p.status?'<span class="tag wn">상태 갱신</span>':'<span class="tag">중복</span>'):'<span class="tag ok">신규</span>'}</td></tr>`}).join('')}</table></div>`:'';
+    $('#impOk').disabled=!parsed.length;$$('#impPrev [data-rt]').forEach(s=>s.onchange=()=>parsed[+s.dataset.rt].roomType=s.value)};
+  $('#impOk').onclick=()=>{let added=0,updated=0,dup=0;parsed.forEach(p=>{const ex=p.otaNo&&DB.resv.find(r=>r.otaNo===p.otaNo);
+      if(ex){if(ex.status!==p.status&&ex.status==='예정'){ex.status=p.status;updated++}else dup++;return}
+      let cid=null;if(p.phone){const d=digits(p.phone);let cu=d.length>=10&&DB.customers.find(x=>digits(x.phone)===d);if(!cu&&d.length>=10&&!p.name.includes('*')){cu={id:uid(),name:p.name||'손님'+d.slice(-4),phone:p.phone,car:'',grade:'일반',black:false,blackReason:'',memo:'',consent:false,tags:[],points:0,stamps:0,birthday:'',createdAt:Date.now()};DB.customers.push(cu)}if(cu)cid=cu.id}
+      DB.resv.push({id:uid(),customerId:cid,name:cid?'':(p.name||'OTA 예약'),phone:cid?'':p.phone,date:p.checkIn,time:p.time||'20:00',kind:p.kind,nights:p.kind==='숙박'?p.nights:0,roomType:p.roomType,roomNo:'',channel:chId,otaNo:p.otaNo,amount:p.amount,prepaid:p.amount,pay:p.amount?'OTA선결제':'',guests:p.guests,memo:(p.memo?p.memo+' ':'')+(p.room?'['+p.room+']':''),status:p.status,createdAt:Date.now(),imported:true});added++});
+    DB.syncLog=DB.syncLog||[];DB.syncLog.unshift({at:Date.now(),channel:chId,kind:'예약',added,updated,dup,by:who()});log(`${c.name} 예약 가져오기 ${added}건`);save();closeModal();render();toast(`신규 ${added} · 갱신 ${updated} · 중복 ${dup}`)}}
+function reviewImportModal(chId){const c=chOf(chId);
+  openModal(`<h2>${esc(c.name)} 리뷰 가져오기</h2><p class="muted">파트너센터 후기 목록을 복사해 붙여넣으세요. 한 줄에 하나(평점 숫자·날짜·내용이 있으면 자동 인식)거나, 표 형식(평점/날짜/작성자/내용 열)도 됩니다.</p><textarea id="rvT" style="min-height:160px;font-size:13px" placeholder="5점	2026-10-20	여행자**	깨끗하고 좋았어요&#10;2점	2026-10-18	ab**	에어컨 소음이 커요"></textarea>
+   <div class="foot"><button class="btn g" onclick="closeModal()">닫기</button><button class="btn" id="rvOk">가져오기</button></div>`);
+  $('#rvOk').onclick=()=>{const text=$('#rvT').value;let added=0,dup=0;const {headers,rows}=parseTable(text);const cols=detectCols(headers);const hasHead=headers.some(h=>/평점|별점|내용|작성자|날짜/.test(String(h)));
+    const lines=hasHead?rows:parseTable('x\n'+text).rows;
+    lines.forEach(r=>{const joined=r.join(' ');const rating=+(joined.match(/([1-5])\s*(?:점|★|\/\s*5)/)||[])[1]||(r.find(x=>/^[1-5]$/.test(String(x).trim()))|0)||5;const date=parseDate(joined)||today();const text2=hasHead&&cols.memo!==undefined?r[cols.memo]:r.filter(x=>!/^\d{4}[.\-\/]/.test(x)&&!/^[1-5]\s*(점|★)?$/.test(String(x).trim())).sort((a,b)=>b.length-a.length)[0]||'';
+      if(!text2||text2.length<3)return;if(DB.reviews.find(v=>v.text===text2&&v.channel===chId)){dup++;return}
+      const author=(joined.match(/([가-힣A-Za-z0-9]{1,6}\*{1,3})/)||[])[1]||'';DB.reviews.unshift({id:uid(),channel:chId,date,rating,author,roomNo:'',text:text2,reply:'',repliedAt:null,imported:true});added++});
+    DB.syncLog=DB.syncLog||[];DB.syncLog.unshift({at:Date.now(),channel:chId,kind:'리뷰',added,updated:0,dup,by:who()});save();closeModal();render();toast(`리뷰 ${added}건 가져옴 (중복 ${dup})`)}}
+
+/* ===================== AI 도우미 (프런트 질문 자동 응답, 기기 내 규칙 엔진) ===================== */
+function aiAnswer(raw){const s=raw.toLowerCase();const td=today();const has=(...w)=>w.some(x=>s.includes(x));
+  const dateIn=()=>{let d=td;if(has('내일'))d=addDays(td,1);else if(has('모레'))d=addDays(td,2);const wd=['일','월','화','수','목','금','토'].findIndex(w=>s.includes(w+'요일'));if(wd>=0){let k=(wd-dow(td)+7)%7;if(k===0&&!has('오늘'))k=7;d=addDays(td,k)}const m=s.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);if(m)d=`${td.slice(0,4)}-${pad(m[1])}-${pad(m[2])}`;const m2=s.match(/(\d{4}-\d{2}-\d{2})/);if(m2)d=m2[1];return d};
+  const typeIn=()=>DB.settings.roomTypes.find(t=>s.replace(/\s/g,'').includes(t.name.replace(/\s/g,'').toLowerCase().replace(/\(.*\)/,'')))||(has('pc','피씨')?DB.settings.roomTypes.find(t=>/pc/i.test(t.name)):has('트윈')?DB.settings.roomTypes.find(t=>t.name.includes('트윈')):has('트리플')?DB.settings.roomTypes.find(t=>t.name.includes('트리플')):null);
+  if(has('공실','빈방','빈 방','잔여','남은 방','가능')){const d=dateIn();const av=availOn(d);const now=DB.settings.rooms.filter(r=>stOf(r.no).status==='vacant');
+    return `${d} 숙박 잔여 ${av.avail}/${av.total}실\n${DB.settings.roomTypes.filter(t=>av.byType[t.id].total).map(t=>`· ${t.name} ${av.byType[t.id].avail}/${av.byType[t.id].total}`).join('\n')}\n지금 당장 공실(청소완료): ${now.length}실 (${now.slice(0,8).map(r=>r.no).join(',')}${now.length>8?'…':''})`}
+  if(has('요금','얼마','가격')){const d=dateIn();const t=typeIn();const kind=has('대실')?'대실':has('숙박')?'숙박':null;const list=t?[t]:DB.settings.roomTypes.filter(x=>DB.settings.rooms.some(r=>r.type===x.id));
+    return `${d} (${dayKindLabel(d)}) 요금\n`+list.map(x=>{const a=quote(x.id,'대실',d),b=quote(x.id,'숙박',d);return `· ${x.name}: ${kind==='숙박'?'':'대실 '+num(a.price)+' '}${kind==='대실'?'':'숙박 '+num(b.price)}${b.notes.length>1?' ('+b.notes.slice(1).join(', ')+')':''}`}).join('\n')}
+  if(has('예약')){const d=dateIn();const rv=DB.resv.filter(r=>r.status==='예정'&&r.date===d);return rv.length?`${d} 예약 ${rv.length}건\n`+rv.map(r=>`· ${r.time} ${custOf(r.customerId)?.name||r.name} ${typeOf(r.roomType).name} ${r.kind}${r.nights>1?' '+r.nights+'박':''} ${r.roomNo||'(미배정)'} · ${chName(r.channel)}`).join('\n'):`${d} 예약이 없습니다.`}
+  if(has('매출','얼마 벌','수입')){const d=has('어제')?addDays(td,-1):has('이번 달','이달')?null:dateIn();if(d){const k=kpiDay(d);return `${d} 매출 ${won(k.sales)} (대실 ${k.dae}건 · 숙박 ${k.suk}건, ADR ${won(k.adr)})`}const m=DB.stays.filter(x=>ymd(x.inAt).startsWith(td.slice(0,7)));return `${td.slice(0,7)} 월 매출 ${won(sum(m,x=>x.amount))} (${m.length}건)`}
+  if(has('청소')){const d=DB.settings.rooms.filter(r=>stOf(r.no).status==='dirty'),c=DB.settings.rooms.filter(r=>stOf(r.no).status==='cleaning');return `청소 대기 ${d.length}실 (${d.map(r=>r.no).join(',')||'-'})\n청소 중 ${c.length}실 (${c.map(r=>r.no).join(',')||'-'})`}
+  if(has('퇴실','체크아웃','초과')){const now=Date.now();const list=DB.settings.rooms.map(r=>({r,s:stOf(r.no).status==='occupied'&&stayOf(stOf(r.no).stayId)})).filter(x=>x.s).sort((a,b)=>a.s.dueAt-b.s.dueAt);return list.length?list.slice(0,12).map(x=>`· ${x.r.no} ${x.s.kind} 퇴실 ${hm(x.s.dueAt)} ${x.s.dueAt<now?'⚠초과':''}`).join('\n'):'사용중 객실이 없습니다.'}
+  if(has('미수'))return (()=>{const u=DB.stays.filter(x=>x.pay==='미수'&&!x.paidAt);return u.length?`미수 ${u.length}건 ${won(sum(u,x=>x.amount))}\n`+u.map(x=>`· ${dt(x.inAt)} ${x.roomNo}호 ${custOf(x.customerId)?.name||x.guestLabel} ${won(x.amount)}`).join('\n'):'미수금이 없습니다.'})();
+  if(has('재고','부족','수건','비품')){const low=DB.inventory.filter(i=>i.qty<=i.min);return low.length?'재고 부족: '+low.map(i=>`${i.name} ${i.qty}${i.unit}(최소 ${i.min})`).join(', '):'부족한 재고가 없습니다.'}
+  if(has('승인','코드','스탬프'))return `오늘 고객앱 승인번호: ${guestDayCode(td)} (어제 ${guestDayCode(addDays(td,-1))}도 유효)`;
+  const m=s.match(/(\d{3,4})\s*호/);if(m){const r=roomOf(m[1]);if(!r)return `${m[1]}호는 등록되지 않은 객실입니다.`;const st=stOf(r.no);const sv=st.status==='occupied'&&stayOf(st.stayId);return `${r.no}호 ${typeOf(r.type).name} · ${STATUS[st.status]}${sv?`\n${sv.kind} ${custOf(sv.customerId)?.name||sv.guestLabel} · 입실 ${dt(sv.inAt)} → 퇴실 ${dt(sv.dueAt)} · ${won(sv.amount)} ${sv.pay}`:''}${st.note?'\n메모: '+st.note:''}`}
+  const cu=DB.customers.filter(c=>!c.purged&&(raw.includes(c.name)||(digits(raw).length>=4&&digits(c.phone).endsWith(digits(raw).slice(-4)))));if(cu.length&&has('고객','손님','누구','번호','방문')||cu.length===1&&raw.length<=6){return cu.slice(0,5).map(c=>{const st=custStats(c.id);return `· ${c.name} ${c.grade}${c.black?' ⚠주의':''} · ${fmtPhone(c.phone)} · 방문 ${st.visits}회 누적 ${won(st.spent)}${st.last?' · 최근 '+ymd(st.last):''}${c.memo?' · '+c.memo:''}`}).join('\n')}
+  return '이런 걸 물어보세요:\n· "오늘 공실" "내일 트윈 잔여"\n· "토요일 숙박 요금" "11월 1일 요금"\n· "오늘 예약" "내일 예약"\n· "오늘 매출" "이달 매출"\n· "청소" "퇴실 순서" "미수" "재고"\n· "302호" / 고객 이름·전화 뒷자리\n· "승인코드"'}
+function aiHelperModal(){openModal(`<h2>🤖 AI 도우미 <small class="muted">기기 안 데이터로 즉시 답합니다</small></h2><div id="aiBox" style="max-height:50vh;overflow:auto;background:#f6f8fc;border-radius:10px;padding:10px;font-size:14px;white-space:pre-wrap"></div>
+   <div class="row" style="margin-top:8px">${['오늘 공실','내일 요금','오늘 예약','오늘 매출','퇴실 순서','청소','승인코드'].map(q=>`<button class="btn g xs" data-q="${q}">${q}</button>`).join('')}</div>
+   <div class="row" style="margin-top:8px"><input id="aiQ" placeholder="예: 토요일 트윈 숙박 얼마? / 302호 / 김민수" style="flex:1"><button class="btn" id="aiGo">질문</button></div><div class="foot"><button class="btn g" onclick="closeModal()">닫기</button></div>`);
+  const box=$('#aiBox');const run=q=>{if(!q.trim())return;box.innerHTML+=`<div style="text-align:right;margin:4px 0"><span style="background:var(--navy);color:#fff;border-radius:12px;padding:5px 10px;display:inline-block">${esc(q)}</span></div><div style="margin:4px 0"><span style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 10px;display:inline-block;max-width:95%">${esc(aiAnswer(q))}</span></div>`;box.scrollTop=1e9;$('#aiQ').value=''};
+  $('#aiGo').onclick=()=>run($('#aiQ').value);$('#aiQ').onkeydown=e=>{if(e.key==='Enter')run($('#aiQ').value)};$$('#modal [data-q]').forEach(b=>b.onclick=()=>run(b.dataset.q));$('#aiQ').focus();run('오늘 공실')}
+
+/* ===================== 고객앱 혜택·QR (마케팅) ===================== */
+function guestDayCode(d){const s=(DB.settings.guestApp?.secret||'emotel-2026')+'|'+(d||today());let h=5381;for(let i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;return String(h%10000).padStart(4,'0')}
+function qrUrl(data,size){return `https://api.qrserver.com/v1/create-qr-code/?size=${size||220}x${size||220}&margin=4&data=${encodeURIComponent(data)}`}
+function rMktApp(body){const g=DB.settings.guestApp;const td=today();const base=g.url.replace(/\/?$/,'/');
+  const used=DB.stays.filter(s=>s.couponId==='guestapp');const week=[...Array(7)].map((_,i)=>addDays(td,i));
+  body.innerHTML=`<div class="grid2" style="align-items:start"><div class="card"><h3>오늘 고객앱 승인번호</h3><div style="font-size:44px;font-weight:900;letter-spacing:8px;text-align:center;color:var(--navy)">${guestDayCode(td)}</div><p class="muted" style="text-align:center">고객이 쿠폰을 쓰거나 스탬프를 적립할 때 직원이 고객 휴대폰에 이 번호를 입력합니다. 자정에 바뀌며 어제 번호도 하루 더 유효합니다.</p>
+    <table><tr>${week.map(d=>`<th style="text-align:center">${md(d)}<br>${DOW[dow(d)]}</th>`).join('')}</tr><tr>${week.map(d=>`<td style="text-align:center;font-weight:700">${guestDayCode(d)}</td>`).join('')}</tr></table>
+    <div class="warn" style="margin-top:8px">승인번호 계산용 비밀값은 고객앱 파일(index.html의 INFO.benefit.secret)과 같아야 합니다. 설정에서 바꾸면 고객앱도 함께 고쳐 다시 배포해야 합니다.</div></div>
+   <div class="card"><h3>앱 설치 혜택 설정</h3><div class="grid2"><div><label>고객앱 주소</label><input id="gaUrl" value="${esc(g.url)}"></div><div><label>승인번호 비밀값</label><input id="gaSec" value="${esc(g.secret)}"></div>
+    <div><label>설치 쿠폰 할인(원)</label><input id="gaDisc" type="number" step="1000" value="${g.welcomeDiscount}"></div><div><label>설치 쿠폰 설명 (고객앱과 동일하게)</label><input id="gaDesc" value="${esc(g.welcomeDesc)}"></div>
+    <div><label>스탬프 목표</label><input id="gaGoal" type="number" value="${g.stampGoal}"></div><div><label>스탬프 보상</label><input id="gaRw" value="${esc(g.stampReward)}"></div></div>
+    <div class="foot"><button class="btn" id="gaOk">저장</button></div>
+    <p class="muted">입실 화면 「쿠폰·할인」에 <b>앱 설치 쿠폰(고객앱)</b>·<b>스탬프 보상(고객앱)</b> 항목이 자동으로 생깁니다. 고객 휴대폰의 쿠폰 코드를 확인하고 승인번호를 눌러 준 뒤 입실 때 그 항목을 고르면 장부에 기록됩니다.</p></div></div>
+   <div class="card"><div class="row"><h3 style="margin:0">QR 코드</h3><button class="btn g sm" id="qrPrint" style="margin-left:auto">객실별 QR 안내문 인쇄(A4)</button></div>
+    <div class="grid3" style="margin-top:10px">
+     <div style="text-align:center"><img src="${qrUrl(base+'?ref=qr')}" width="180" height="180" alt="QR"><div><b>프런트·입구용</b></div><div class="muted">${esc(base)}?ref=qr</div></div>
+     <div style="text-align:center"><img src="${qrUrl(base+'?ref=card')}" width="180" height="180" alt="QR"><div><b>명함·전단용</b></div><div class="muted">?ref=card</div></div>
+     <div style="text-align:center"><img src="${qrUrl(base+'?ref=room&r=301')}" width="180" height="180" alt="QR"><div><b>객실 테이블텐트 예시(301)</b></div><div class="muted">?ref=room&r=호수 → 내 객실 자동 입력</div></div></div>
+    <p class="muted">QR을 찍어 앱을 열면 「${esc(g.welcomeDesc)}」 쿠폰이 자동 발급되고, 홈 화면에 설치하면 쿠폰·스탬프가 유지됩니다. 모바일 데이터로 QR 이미지를 받으니 인쇄 전 화면에서 QR을 한 번 찍어 확인하세요.</p></div>
+   <div class="card"><h3>앱 혜택 실적</h3><div class="stats"><div class="stat"><span>앱 쿠폰 사용</span><b>${used.length}건</b><small>할인 ${won(sum(used,s=>s.discount))}</small></div><div class="stat"><span>스탬프 보상 사용</span><b>${DB.stays.filter(s=>s.couponId==='gueststamp').length}건</b></div><div class="stat"><span>앱 쿠폰 고객 재방문</span><b>${(()=>{const ids=[...new Set(used.map(s=>s.customerId).filter(Boolean))];return ids.filter(id=>custStats(id).visits>=2).length})()}명</b><small>쿠폰 쓴 ${[...new Set(used.map(s=>s.customerId).filter(Boolean))].length}명 중</small></div></div>
+    <table><tr><th>일시</th><th>객실</th><th>고객</th><th>구분</th><th class="num">할인</th><th class="num">결제</th></tr>${used.slice(-20).reverse().map(s=>`<tr><td>${dt(s.inAt)}</td><td>${s.roomNo}</td><td>${esc(custOf(s.customerId)?.name||s.guestLabel)}</td><td>${s.kind}</td><td class="num">${won(s.discount)}</td><td class="num">${won(s.amount)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">아직 없음</td></tr>'}</table></div>`;
+  $('#gaOk').onclick=()=>{Object.assign(g,{url:$('#gaUrl').value.trim(),secret:$('#gaSec').value.trim()||'emotel-2026',welcomeDiscount:+$('#gaDisc').value||0,welcomeDesc:$('#gaDesc').value,stampGoal:+$('#gaGoal').value||10,stampReward:$('#gaRw').value});save();render();toast('저장했습니다')};
+  $('#qrPrint').onclick=()=>{const w=window.open('','_blank');const rooms=DB.settings.rooms;w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(DB.settings.name)} 객실 QR</title><style>body{font-family:sans-serif;margin:0}.pg{display:grid;grid-template-columns:1fr 1fr;gap:0}.c{border:1px dashed #999;padding:18px;text-align:center;height:148.5mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;break-inside:avoid}.c h2{margin:0 0 4px;font-size:22px}.c .r{font-size:34px;font-weight:900;margin:2px 0}.c p{margin:6px 0;font-size:14px;color:#333}.c small{color:#777;font-size:11px}@page{size:A4;margin:8mm}</style></head><body><div class="pg">${rooms.map(r=>`<div class="c"><h2>${esc(DB.settings.name)}</h2><div class="r">${r.no}호</div><img src="${qrUrl(base+'?ref=room&r='+r.no,260)}" width="200" height="200"><p><b>QR을 찍으면 앱 설치 쿠폰 🎁</b><br>${esc(g.welcomeDesc)}</p><p>AI 상담 · 퇴실 알림 · 스탬프 적립<br>☎ ${esc(DB.settings.phone)}</p><small>${esc(base)}</small></div>`).join('')}</div><script>setTimeout(()=>print(),800)<\/script></body></html>`);w.document.close()};
+}
 
 /* ===================== 운영: 청소·시설·재고·분실물 ===================== */
 const HK_CHECK=['침구 교체','수건·어메니티 보충','욕실 청소','쓰레기 비움','바닥·먼지','냉장고·미니바','에어컨·TV 리모컨 확인','소모품 채움'];
@@ -1133,6 +1247,7 @@ function rSet(){const s=DB.settings;const sec=$('#v-set');
    <div class="grid3" style="margin-top:8px"><div><label class="chk" style="margin-top:18px"><input type="checkbox" id="sPtE" ${s.points.enabled?'checked':''}> 포인트·스탬프 사용</label></div><div><label>포인트 적립률 (%)</label><input id="sPtR" type="number" step="0.5" value="${s.points.rate}"></div><div><label>스탬프 목표 횟수</label><input id="sPtG" type="number" value="${s.points.stampGoal}"></div><div><label>스탬프 보상</label><input id="sPtW" value="${esc(s.points.stampReward)}"></div><div style="grid-column:span 2"><label>광고 문자 하단 문구 (수신거부 안내)</label><input id="sSms" value="${esc(s.smsFooter)}"></div></div>
    <div class="foot"><button class="btn" id="sOk">저장</button></div></div>
 
+  <div class="card"><h3>고객용 앱 (분리 운영)</h3><p class="muted">고객이 쓰는 앱은 별도 주소 <a href="${esc(s.guestApp.url)}" target="_blank" rel="noopener">${esc(s.guestApp.url)}</a> 입니다. 이 관리자 앱의 데이터는 고객앱에 전송되지 않습니다. 설치 쿠폰·스탬프·승인번호·QR은 마케팅 › 앱 혜택·QR에서 관리합니다.</p></div>
   <div class="card"><h3>객실 구성 <small>한 줄에 한 객실: <b>호수,층,타입명</b> (타입명은 요금·채널 탭의 표와 똑같이)</small></h3>
    <textarea id="rmTxt" style="min-height:180px;font-family:monospace">${s.rooms.map(r=>`${r.no},${r.floor},${typeOf(r.type).name}`).join('\n')}</textarea>
    <div class="foot"><button class="btn" id="rmOk">객실 구성 저장</button></div></div>
